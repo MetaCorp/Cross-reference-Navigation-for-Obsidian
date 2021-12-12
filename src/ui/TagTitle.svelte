@@ -5,6 +5,7 @@
 	export let parentTag: string = undefined
 	export let inline: boolean = false
 	export let strong: boolean = false
+	export let forceTwoLines: boolean = false
 
 	let label: string
 	let title: string
@@ -19,7 +20,7 @@
 
 {#if !inline}
 	<div class={strong ? 'strong' : ''}>
-		<p class="small muted">{label ? label + '/' : ''}</p>
+		<p class="small muted">{label ? label + '/' : forceTwoLines ? '-' : ''}</p>
 		<p>{title}</p>
 	</div>
 {:else}

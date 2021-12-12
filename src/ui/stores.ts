@@ -188,6 +188,10 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 		const toShowClone = clone(newState.toShow, true, 5)
 		Object.keys(newState.toShow).forEach((group) => {
 			Object.keys(newState.toShow[group]).forEach((tag) => {
+				const parts = tagParts(tag)
+				const label = parts.label || ''
+				// const title = parts.title
+
 				if (group === '') {
 					const groupDisplayName = newState.toShow[''][tag].displayName
 					if (newState.toShow[groupDisplayName]) {
@@ -196,7 +200,11 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 						// Add simple ref to group
 						toShowClone[groupDisplayName][tag] = newState.toShow[''][tag]
 
-						// TODO : update groupCounts and tagCounts
+						// Update groupCounts and tagCounts
+						groupCounts[groupDisplayName] =
+							(groupCounts[groupDisplayName] || 0) + 1
+						tagCounts[groupDisplayName][tag] =
+							(tagCounts[groupDisplayName][tag] || 0) + tagCounts[label][tag]
 
 						delete toShowClone[''][tag]
 					}
@@ -229,6 +237,9 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 					)
 
 					// TODO : update groupCounts and tagCounts
+					groupCounts[group] = (groupCounts[group] || 0) + 1
+					tagCounts[group][parentTag] =
+						(tagCounts[group][parentTag] || 0) + tagCounts[group][tag]
 
 					delete toShowClone[group][parentTag].subrefs[tag].crossrefs
 

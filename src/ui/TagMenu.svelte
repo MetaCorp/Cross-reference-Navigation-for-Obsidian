@@ -118,7 +118,12 @@
 								on:click={(_) =>
 									viewStore.selectTags([...$viewStore.selectedTags, tag])}
 							>
-								<TagTitle {tag} inline={false} strong={true} />
+								<TagTitle
+									{tag}
+									inline={false}
+									strong={true}
+									forceTwoLines={true}
+								/>
 								<div class="flex-spacer" />
 								<span class="muted strong"
 									>{$viewStore.toShow[label][tag].files.length}</span
