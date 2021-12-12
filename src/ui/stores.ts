@@ -210,6 +210,10 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 								newState.toShow[group][tag].crossrefs[subcrossref]
 						}
 					)
+					toShowClone[group][parentTag].files.push(
+						...toShowClone[group][parentTag].subrefs[tag].files
+					)
+
 					delete toShowClone[group][parentTag].subrefs[tag].crossrefs
 
 					delete toShowClone[group][tag]
