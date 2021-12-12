@@ -85,12 +85,19 @@ export interface TagMenuState {
 				displayName: string
 				files: TFile[]
 				crossrefs: { [tag: string]: number }
+				subrefs: {
+					[tag: string]: {
+						displayName: string
+						files: TFile[]
+					}
+				}
 			}
 		}
 	}
 	groupsSorted: string[]
 	tagsSorted: { [group: string]: string[] }
 	crossrefsSorted: { [group: string]: { [tag: string]: string[] } }
+	subrefsSorted: { [group: string]: { [tag: string]: string[] } }
 	allMatchingFiles: TFile[]
 	selectedTags: string[]
 	expandedGroups: string[]
@@ -102,6 +109,7 @@ function generateInitialTagMenuState(): TagMenuState {
 		groupsSorted: [],
 		tagsSorted: {},
 		crossrefsSorted: {},
+		subrefsSorted: {},
 		allMatchingFiles: [],
 		selectedTags: [],
 		expandedGroups: [''], // always expand ungrouped tags section
@@ -158,6 +166,7 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 							displayName: title,
 							files: [],
 							crossrefs: {},
+							subrefs: {},
 						}
 					}
 
@@ -186,9 +195,9 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 
 				if (newState.toShow[group][parentTag]) {
 					console.log({ group, tag, parentTag })
-					if (!toShowClone[group][parentTag].subrefs) {
-						toShowClone[group][parentTag].subrefs = {}
-					}
+					// if (!toShowClone[group][parentTag].subrefs) {
+					// 	toShowClone[group][parentTag].subrefs = {}
+					// }
 
 					toShowClone[group][parentTag].subrefs[tag] =
 						newState.toShow[group][tag]
@@ -307,6 +316,34 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 					})
 
 				newState.crossrefsSorted[group][tag] = sorted
+			})
+		})
+
+		// Generate subrefsSorted
+		Object.keys(newState.toShow).forEach((group) => {
+			newState.subrefsSorted[group] = {}
+			Object.keys(newState.toShow[group]).forEach((tag) => {
+				const subrefs = newState.toShow[group][tag].subrefs
+				const sorted = Object.keys(subrefs).sort(
+					(a, b) => subrefs[b].files.length - subrefs[a].files.length
+				)
+
+				sorted
+					.slice()
+					.reverse()
+					.forEach((tag) => {
+						if (
+							settingsState.favoriteTags.find((ftag) => tag === ftag) ||
+							settingsState.favoriteGroups.find((fgroup) =>
+								tag.startsWith('#' + fgroup)
+							)
+						) {
+							sorted.splice(sorted.indexOf(tag), 1)
+							sorted.unshift(tag)
+						}
+					})
+
+				newState.subrefsSorted[group][tag] = sorted
 			})
 		})
 

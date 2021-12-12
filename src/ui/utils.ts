@@ -1,4 +1,7 @@
-export function tagParts(tag: string): {
+export function tagParts(
+	tag: string,
+	parentTag?: string
+): {
 	tag: string
 	label?: string
 	title: string
@@ -9,10 +12,12 @@ export function tagParts(tag: string): {
 		temp = temp.slice(1)
 	}
 
+	const nestingLevel = parentTag ? parentTag?.split('/').length : 1
+
 	if (temp.contains('/')) {
 		const split = temp.split('/')
-		const label = split.shift()
-		const title = split.join('/')
+		const label = split.slice(0, nestingLevel).join('/')
+		const title = split.slice(nestingLevel).join('/')
 
 		return {
 			tag: tag,
