@@ -184,13 +184,27 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 			}
 		})
 
-		console.log({ newState })
 		// Remove subrefs from toShow dico and add them in toShow.{REF}.subrefs
 		const toShowClone = clone(newState.toShow, true, 5)
-		console.log({ toShowClone })
 		Object.keys(newState.toShow).forEach((group) => {
 			Object.keys(newState.toShow[group]).forEach((tag) => {
+				if (group === '') {
+					const groupDisplayName = newState.toShow[''][tag].displayName
+					if (newState.toShow[groupDisplayName]) {
+						console.log({ group, tag })
+
+						// Add simple ref to group
+						toShowClone[groupDisplayName][tag] = newState.toShow[''][tag]
+
+						// TODO : update groupCounts and tagCounts
+
+						delete toShowClone[''][tag]
+					}
+					return
+				}
+
 				const parentTag = getRootTag(tag, 2)
+
 				if (tag === parentTag) return
 
 				if (newState.toShow[group][parentTag]) {
@@ -213,6 +227,8 @@ export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
 					toShowClone[group][parentTag].files.push(
 						...toShowClone[group][parentTag].subrefs[tag].files
 					)
+
+					// TODO : update groupCounts and tagCounts
 
 					delete toShowClone[group][parentTag].subrefs[tag].crossrefs
 
