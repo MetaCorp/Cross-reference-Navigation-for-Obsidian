@@ -1,278 +1,356 @@
-import { getAllTags, Plugin, TFile } from "obsidian";
-import { get, Readable, writable } from "svelte/store";
-import { tagParts } from "./utils";
+import clone from 'clone'
+import { getAllTags, Plugin, TFile } from 'obsidian'
+import { get, Readable, writable } from 'svelte/store'
+import { getRootTag, tagParts } from './utils'
 
 export interface StoredSettings {
-  favoriteGroups: string[],
-  favoriteTags: string[]
+	favoriteGroups: string[]
+	favoriteTags: string[]
 }
 
 export const defaultSettings: StoredSettings = {
-  favoriteGroups: ["status", "activity"],
-  favoriteTags: []
+	favoriteGroups: ['status', 'activity'],
+	favoriteTags: [],
 }
 
 export interface SettingsStore extends Readable<StoredSettings> {
-  toggleFavoriteGroup(group: string): void
-  toggleFavoriteTag(tag: string): void
+	toggleFavoriteGroup(group: string): void
+	toggleFavoriteTag(tag: string): void
 }
 
 export async function createSettingsStore(
-  plugin: Plugin
+	plugin: Plugin
 ): Promise<SettingsStore> {
-  const initialData = await plugin.loadData()
-  const { subscribe, update } = writable<StoredSettings>({ ...defaultSettings, ...initialData });
+	const initialData = await plugin.loadData()
+	const { subscribe, update } = writable<StoredSettings>({
+		...defaultSettings,
+		...initialData,
+	})
 
-  function toggleFavoriteGroup(group: string) {
-    update(settings => {
-      const favoriteGroups = settings.favoriteGroups
+	function toggleFavoriteGroup(group: string) {
+		update((settings) => {
+			const favoriteGroups = settings.favoriteGroups
 
-      const index = favoriteGroups.indexOf(group)
+			const index = favoriteGroups.indexOf(group)
 
-      if (index > -1) {
-        favoriteGroups.splice(index, 1)
-      }
-      else {
-        favoriteGroups.push(group)
-      }
+			if (index > -1) {
+				favoriteGroups.splice(index, 1)
+			} else {
+				favoriteGroups.push(group)
+			}
 
-      const newState = {
-        ...settings,
-        favoriteGroups
-      }
+			const newState = {
+				...settings,
+				favoriteGroups,
+			}
 
-      plugin.saveData(newState)
-      return newState
-    })
-  }
+			plugin.saveData(newState)
+			return newState
+		})
+	}
 
-  function toggleFavoriteTag(tag: string) {
-    update(settings => {
-      const favoriteTags = settings.favoriteTags
+	function toggleFavoriteTag(tag: string) {
+		update((settings) => {
+			const favoriteTags = settings.favoriteTags
 
-      const index = favoriteTags.indexOf(tag)
+			const index = favoriteTags.indexOf(tag)
 
-      if (index > -1) {
-        favoriteTags.splice(index, 1)
-      }
-      else {
-        favoriteTags.push(tag)
-      }
+			if (index > -1) {
+				favoriteTags.splice(index, 1)
+			} else {
+				favoriteTags.push(tag)
+			}
 
-      const newState = {
-        ...settings,
-        favoriteTags
-      }
+			const newState = {
+				...settings,
+				favoriteTags,
+			}
 
-      plugin.saveData(newState)
-      return newState
-    })
-  }
-  
+			plugin.saveData(newState)
+			return newState
+		})
+	}
+
 	return {
 		subscribe,
-    toggleFavoriteGroup,
-    toggleFavoriteTag
-	};
+		toggleFavoriteGroup,
+		toggleFavoriteTag,
+	}
 }
 
 export interface TagMenuState {
-  toShow: {
-    [group: string]: {
-      [tag: string]: {
-        displayName: string,
-        files: TFile[],
-        crossrefs: { [tag: string]: number }
-      }
-    }
-  },
-  groupsSorted: string[],
-  tagsSorted: { [group: string]: string[] },
-  crossrefsSorted: { [group: string]: { [tag: string]: string[] } }
-  allMatchingFiles: TFile[],
-  selectedTags: string[],
-  expandedGroups: string[]
+	toShow: {
+		[group: string]: {
+			[tag: string]: {
+				displayName: string
+				files: TFile[]
+				crossrefs: { [tag: string]: number }
+			}
+		}
+	}
+	groupsSorted: string[]
+	tagsSorted: { [group: string]: string[] }
+	crossrefsSorted: { [group: string]: { [tag: string]: string[] } }
+	allMatchingFiles: TFile[]
+	selectedTags: string[]
+	expandedGroups: string[]
 }
 
 function generateInitialTagMenuState(): TagMenuState {
-  return {
-    toShow: {},
-    groupsSorted: [],
-    tagsSorted: {},
-    crossrefsSorted: {},
-    allMatchingFiles: [],
-    selectedTags: [],
-    expandedGroups: [""] // always expand ungrouped tags section
-  }
+	return {
+		toShow: {},
+		groupsSorted: [],
+		tagsSorted: {},
+		crossrefsSorted: {},
+		allMatchingFiles: [],
+		selectedTags: [],
+		expandedGroups: [''], // always expand ungrouped tags section
+	}
 }
 
 export interface TagMenuStore extends Readable<TagMenuState> {
-  selectTags(selectTags: string[]): void
-  toggleExpandedGroup(group: string): void
-  destroy(): void
-  loadState(selectedTags: string[], expandedGroups: string[]): void
+	selectTags(selectTags: string[]): void
+	toggleExpandedGroup(group: string): void
+	destroy(): void
+	loadState(selectedTags: string[], expandedGroups: string[]): void
 }
 
-export function createTagMenuStore(
-  settingsStore: SettingsStore
-): TagMenuStore {
-  const { subscribe, set, update } = writable<TagMenuState>(generateInitialTagMenuState());
+export function createTagMenuStore(settingsStore: SettingsStore): TagMenuStore {
+	const { subscribe, set, update } = writable<TagMenuState>(
+		generateInitialTagMenuState()
+	)
 
-  function selectTags(selectTags: string[]) {
-    const newState = generateInitialTagMenuState()
-    newState.selectedTags = selectTags
+	function selectTags(selectTags: string[]) {
+		console.log('selectTags 0', { selectTags })
 
-    const groupCounts: { [group: string]: number } = {}
-    const tagCounts: { [group: string]: { [tag: string]: number } } = {}
+		const newState = generateInitialTagMenuState()
+		newState.selectedTags = selectTags
 
-    const allFiles = window.app.vault.getMarkdownFiles()
-    const allFileTags: {[fname: string]: string[]} = {}
-    allFiles.forEach(file => {
-      const fileTags = getAllTags(window.app.metadataCache.getFileCache(file))
-      allFileTags[file.name] = fileTags
-      if (selectTags.every(t => fileTags.includes(t))) {
-        newState.allMatchingFiles.push(file)
+		const groupCounts: { [group: string]: number } = {}
+		const tagCounts: { [group: string]: { [tag: string]: number } } = {}
 
-        fileTags.forEach(tag => {
-          if (selectTags.includes(tag)) { return }
+		const allFiles = window.app.vault.getMarkdownFiles()
+		const allFileTags: { [fname: string]: string[] } = {}
+		allFiles.forEach((file) => {
+			// Get file tags from Obsidian Cache
+			const fileTags = getAllTags(window.app.metadataCache.getFileCache(file))
+			allFileTags[file.name] = fileTags
 
-          const parts = tagParts(tag)
-          const label = parts.label || ""
-          const title = parts.title
+			// I think this is where it filters files based on breadcrumbs state
+			if (selectTags.every((t) => fileTags.includes(t))) {
+				newState.allMatchingFiles.push(file)
 
-          if (!newState.toShow[label]) {
-            newState.toShow[label] = {}
-          }
+				fileTags.forEach((tag) => {
+					if (selectTags.includes(tag)) {
+						return
+					}
 
-          if (!newState.toShow[label][tag]) {
-            newState.toShow[label][tag] = { displayName: title, files: [], crossrefs: {} }
-          }
+					const parts = tagParts(tag)
+					const label = parts.label || ''
+					const title = parts.title
 
-          newState.toShow[label][tag].files.push(file)
+					if (!newState.toShow[label]) {
+						newState.toShow[label] = {}
+					}
 
-          if (!tagCounts[label]) { tagCounts[label] = {} }
+					if (!newState.toShow[label][tag]) {
+						newState.toShow[label][tag] = {
+							displayName: title,
+							files: [],
+							crossrefs: {},
+						}
+					}
 
-          groupCounts[label] = (groupCounts[label] || 0) + 1
-          tagCounts[label][tag] = (tagCounts[label][tag] || 0) + 1
-        })
-      }
-    })
+					// This is a big dico that is displayed
+					newState.toShow[label][tag].files.push(file)
 
-    // Generate groupsSorted
-    newState.groupsSorted = Object.keys(newState.toShow).sort((a, b) => (groupCounts[b] + Object.keys(tagCounts[b]||{}).length) - (groupCounts[a] + Object.keys(tagCounts[a]||{}).length)) // tagCounts included to prioritize groups that have more columns
+					// And this compute the number of files/groups
+					if (!tagCounts[label]) {
+						tagCounts[label] = {}
+					}
 
-    const settingsState = get(settingsStore)
-    const _favoriteGroups = settingsState.favoriteGroups.sort((a, b) => ((groupCounts[a]||0) + Object.keys(tagCounts[a]||{}).length) - ((groupCounts[b]||0)) + Object.keys(tagCounts[b]||{}).length)
-    _favoriteGroups.forEach(group => {
-      const index = newState.groupsSorted.indexOf(group)
+					groupCounts[label] = (groupCounts[label] || 0) + 1
+					tagCounts[label][tag] = (tagCounts[label][tag] || 0) + 1
+				})
+			}
+		})
 
-      if (index > -1) {
-        newState.groupsSorted.splice(index,1);
-        newState.groupsSorted.unshift(group);
-      }
-    })
+		console.log({ newState })
+		// Remove subrefs from toShow dico and add them in toShow.{REF}.subrefs
+		const toShowClone = clone(newState.toShow, true, 5)
+		console.log({ toShowClone })
+		Object.keys(newState.toShow).forEach((group) => {
+			Object.keys(newState.toShow[group]).forEach((tag) => {
+				const parentTag = getRootTag(tag, 2)
+				if (tag === parentTag) return
 
-    // Put list of all ungrouped tags at bottom, it will always be expanded
-    const index = newState.groupsSorted.indexOf("")
-    if (index > -1) {
-      newState.groupsSorted.splice(index,1);
-      newState.groupsSorted.push("");
-    }
+				if (newState.toShow[group][parentTag]) {
+					console.log({ group, tag, parentTag })
+					if (!toShowClone[group][parentTag].subrefs) {
+						toShowClone[group][parentTag].subrefs = {}
+					}
 
-    // Put list of favorite tags at top
-    if (settingsState.favoriteTags.length > 0 && newState.toShow[""]) {
-      newState.groupsSorted.unshift("favorite tags")
-      newState.toShow["favorite tags"] = {}
-      tagCounts["favorite tags"] = {}
+					toShowClone[group][parentTag].subrefs[tag] =
+						newState.toShow[group][tag]
 
-      settingsState.favoriteTags.forEach(tag => {
-        if (newState.toShow[""][tag]) {
-          newState.toShow["favorite tags"][tag] = newState.toShow[""][tag]
-          delete newState.toShow[""][tag]
+					// Add subcrossrefs to parentTag, then delete tag crossrefs
+					Object.keys(newState.toShow[group][tag].crossrefs).forEach(
+						(subcrossref) => {
+							toShowClone[group][parentTag].crossrefs[subcrossref] =
+								(toShowClone[group][parentTag].crossrefs[subcrossref] || 0) +
+								newState.toShow[group][tag].crossrefs[subcrossref]
+						}
+					)
+					delete toShowClone[group][parentTag].subrefs[tag].crossrefs
 
-          tagCounts["favorite tags"][tag] = tagCounts[""][tag]
-          delete tagCounts[""][tag]
-        }
-      })
-    }
+					delete toShowClone[group][tag]
+				}
+			})
+		})
+		newState.toShow = toShowClone
 
-    // Generate tagsSorted, crossrefs
-    Object.keys(newState.toShow).forEach(group => {
-      newState.tagsSorted[group] = Object.keys(newState.toShow[group]).sort((a, b) => tagCounts[group][b] - tagCounts[group][a])
+		// Generate groupsSorted
+		newState.groupsSorted = Object.keys(newState.toShow).sort(
+			(a, b) =>
+				groupCounts[b] +
+				Object.keys(tagCounts[b] || {}).length -
+				(groupCounts[a] + Object.keys(tagCounts[a] || {}).length)
+		) // tagCounts included to prioritize groups that have more columns
 
-      Object.keys(newState.toShow[group]).forEach(tag => {
-        const files = newState.toShow[group][tag].files
-        const crossrefs: {[index: string]: number} = {}
-        files.forEach(file => {
-          allFileTags[file.name].forEach(tag2 => {
-            if (tag2 === tag) { return }
-            if (selectTags.includes(tag2)) { return }
-            crossrefs[tag2] = (crossrefs[tag2] || 0) + 1
-          })
-        })
-        newState.toShow[group][tag].crossrefs = crossrefs
-      })
-    })
+		const settingsState = get(settingsStore)
+		const _favoriteGroups = settingsState.favoriteGroups.sort(
+			(a, b) =>
+				(groupCounts[a] || 0) +
+				Object.keys(tagCounts[a] || {}).length -
+				(groupCounts[b] || 0) +
+				Object.keys(tagCounts[b] || {}).length
+		)
+		_favoriteGroups.forEach((group) => {
+			const index = newState.groupsSorted.indexOf(group)
 
-    // Generate crossrefsSorted
-    Object.keys(newState.toShow).forEach(group => {
-      newState.crossrefsSorted[group] = {}
-      Object.keys(newState.toShow[group]).forEach(tag => {
-        const crossrefs = newState.toShow[group][tag].crossrefs
-        const sorted = Object.keys(crossrefs).sort((a, b) => crossrefs[b] - crossrefs[a])
+			if (index > -1) {
+				newState.groupsSorted.splice(index, 1)
+				newState.groupsSorted.unshift(group)
+			}
+		})
 
-        sorted.slice().reverse().forEach(tag => {
-          if (settingsState.favoriteTags.find(ftag => tag === ftag) 
-          || settingsState.favoriteGroups.find(fgroup => tag.startsWith("#" + fgroup))) {
-            sorted.splice(sorted.indexOf(tag),1);
-            sorted.unshift(tag);
-          }
-        })
+		// Put list of all ungrouped tags at bottom, it will always be expanded
+		const index = newState.groupsSorted.indexOf('')
+		if (index > -1) {
+			newState.groupsSorted.splice(index, 1)
+			newState.groupsSorted.push('')
+		}
 
-        newState.crossrefsSorted[group][tag] = sorted
-      })
-    })
+		// Put list of favorite tags at top
+		if (settingsState.favoriteTags.length > 0 && newState.toShow['']) {
+			newState.groupsSorted.unshift('favorite tags')
+			newState.toShow['favorite tags'] = {}
+			tagCounts['favorite tags'] = {}
 
-    set(newState)
-  }
+			settingsState.favoriteTags.forEach((tag) => {
+				if (newState.toShow[''][tag]) {
+					newState.toShow['favorite tags'][tag] = newState.toShow[''][tag]
+					delete newState.toShow[''][tag]
 
-  function toggleExpandedGroup(group: string) {
-    update(state => {
-      const expandedGroups = state.expandedGroups
+					tagCounts['favorite tags'][tag] = tagCounts[''][tag]
+					delete tagCounts[''][tag]
+				}
+			})
+		}
 
-      const index = expandedGroups.indexOf(group)
+		// Generate tagsSorted, crossrefs
+		Object.keys(newState.toShow).forEach((group) => {
+			newState.tagsSorted[group] = Object.keys(newState.toShow[group]).sort(
+				(a, b) => tagCounts[group][b] - tagCounts[group][a]
+			)
 
-      if (index > -1) {
-        expandedGroups.splice(index, 1)
-      }
-      else {
-        expandedGroups.push(group)
-      }
+			Object.keys(newState.toShow[group]).forEach((tag) => {
+				const files = newState.toShow[group][tag].files
+				const crossrefs: { [index: string]: number } = {}
+				files.forEach((file) => {
+					allFileTags[file.name].forEach((tag2) => {
+						if (tag2 === tag) {
+							return
+						}
+						if (selectTags.includes(tag2)) {
+							return
+						}
+						crossrefs[tag2] = (crossrefs[tag2] || 0) + 1
+					})
+				})
+				newState.toShow[group][tag].crossrefs = crossrefs
+			})
+		})
 
-      return {
-        ...state,
-        expandedGroups
-      }
-    })
-  }
+		// Generate crossrefsSorted
+		Object.keys(newState.toShow).forEach((group) => {
+			newState.crossrefsSorted[group] = {}
+			Object.keys(newState.toShow[group]).forEach((tag) => {
+				const crossrefs = newState.toShow[group][tag].crossrefs
+				const sorted = Object.keys(crossrefs).sort(
+					(a, b) => crossrefs[b] - crossrefs[a]
+				)
 
-  function loadState(selectedTags: string[], expandedGroups: string[]) {
-    if (selectedTags) {
-      selectTags(selectedTags)
-    }
+				sorted
+					.slice()
+					.reverse()
+					.forEach((tag) => {
+						if (
+							settingsState.favoriteTags.find((ftag) => tag === ftag) ||
+							settingsState.favoriteGroups.find((fgroup) =>
+								tag.startsWith('#' + fgroup)
+							)
+						) {
+							sorted.splice(sorted.indexOf(tag), 1)
+							sorted.unshift(tag)
+						}
+					})
 
-    if (expandedGroups) {
-      update(state => ({
-        ...state,
-        expandedGroups
-      }))
-    }
-  }
+				newState.crossrefsSorted[group][tag] = sorted
+			})
+		})
 
-  const unsubscribe = settingsStore.subscribe(_ => {
-    selectTags(get({subscribe}).selectedTags)
-  })
-  const destroy = unsubscribe
+		console.log('selectTags', { selectTags, newState })
 
-  return { subscribe, destroy, loadState, selectTags, toggleExpandedGroup }
+		set(newState)
+	}
+
+	function toggleExpandedGroup(group: string) {
+		update((state) => {
+			const expandedGroups = state.expandedGroups
+
+			const index = expandedGroups.indexOf(group)
+
+			if (index > -1) {
+				expandedGroups.splice(index, 1)
+			} else {
+				expandedGroups.push(group)
+			}
+
+			return {
+				...state,
+				expandedGroups,
+			}
+		})
+	}
+
+	function loadState(selectedTags: string[], expandedGroups: string[]) {
+		if (selectedTags) {
+			selectTags(selectedTags)
+		}
+
+		if (expandedGroups) {
+			update((state) => ({
+				...state,
+				expandedGroups,
+			}))
+		}
+	}
+
+	const unsubscribe = settingsStore.subscribe((_) => {
+		selectTags(get({ subscribe }).selectedTags)
+	})
+	const destroy = unsubscribe
+
+	return { subscribe, destroy, loadState, selectTags, toggleExpandedGroup }
 }
