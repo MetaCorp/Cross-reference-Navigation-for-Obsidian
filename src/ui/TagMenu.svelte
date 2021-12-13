@@ -138,7 +138,7 @@
 											on:click={(_) =>
 												viewStore.selectTags([
 													...$viewStore.selectedTags,
-													tag,
+													// tag,
 													tag2,
 												])}
 										>
