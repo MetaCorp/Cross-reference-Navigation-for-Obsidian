@@ -122,7 +122,7 @@
 									{tag}
 									inline={false}
 									strong={true}
-									forceTwoLines={true}
+									forceTwoLines={label !== ''}
 								/>
 								<div class="flex-spacer" />
 								<span class="muted strong"
@@ -358,6 +358,7 @@
 		font-weight: bold;
 		font-size: 12px;
 		margin-right: 10px;
+		white-space: pre;
 
 		transition: all 0.2s ease;
 	}
